@@ -1,0 +1,50 @@
+# Job Watcher configuration
+#
+# companies: list of targets. `token` is the company's slug on that ATS —
+# find it in the careers page URL, e.g.:
+#   boards.greenhouse.io/nebius          -> token: nebius
+#   jobs.lever.co/some-company           -> token: some-company
+#   jobs.ashbyhq.com/some-company        -> token: some-company
+#   careers.smartrecruiters.com/Company  -> token: Company (case-sensitive!)
+#   some-company.recruitee.com           -> token: some-company
+#   apply.workable.com/some-company      -> token: some-company
+#
+# Not all tokens below are verified — confirm each one against the real
+# careers URL before relying on it. A wrong token just means that company
+# gets skipped with a warning, it won't break the whole run.
+
+companies:
+  - name: Nebius
+    ats: greenhouse
+    token: nebius          # confirmed — boards.eu.greenhouse.io/nebius
+
+  - name: Adyen
+    ats: greenhouse
+    token: adyen           # TODO: verify slug on adyen's careers page
+
+  - name: Booking.com
+    ats: greenhouse
+    token: booking          # TODO: verify — Booking may use a custom/internal ATS instead
+
+  - name: TomTom
+    ats: greenhouse
+    token: tomtom           # TODO: verify slug
+
+  # Add more companies here as you find them. Example for a Lever/Ashby company:
+  # - name: Example Startup
+  #   ats: ashby
+  #   token: example-startup
+
+# Only roles whose title contains at least one of these (case-insensitive)
+# will be added to the tracker. Keep this reasonably broad — you can always
+# ignore/delete rows you don't care about in the sheet.
+keywords:
+  - "software engineer"
+  - "backend"
+  - "junior"
+  - "graduate"
+  - "intern"
+  - "early talent"
+  - "ai engineer"
+  - "machine learning"
+  - "llm"
