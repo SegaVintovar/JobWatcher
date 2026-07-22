@@ -1,9 +1,9 @@
 # Job Watcher
 
 Checks company job boards (Greenhouse, Lever, Ashby, SmartRecruiters,
-Recruitee, Workable) for openings matching your keywords, and adds new
-matches straight into your Google Sheets application tracker as
-"wishlist" entries — automatically, on a schedule.
+Recruitee, Workable, and Workday) for openings matching your keywords,
+and adds new matches straight into your Google Sheets application
+tracker as "wishlist" entries — automatically, on a schedule.
 
 It never touches a row that's already in the sheet, so if you've moved
 something to "Applied" or "Interview," this won't overwrite it.
@@ -56,20 +56,38 @@ Open their careers page and look at the URL:
 | SmartRecruiters | `careers.smartrecruiters.com/{Token}`     | `{Token}` (case-sensitive) |
 | Recruitee       | `{token}.recruitee.com`                   | `{token}`             |
 | Workable        | `apply.workable.com/{token}`              | `{token}`             |
+| Workday         | `{tenant}.{wd_server}.myworkdayjobs.com/{site}` | needs all three fields — see `config.yaml` comments |
 
 If a company's careers page doesn't match any of these patterns, it's
-likely on Workday or a custom-built system — this tool doesn't support
-those (see the "Limitations" section below).
+likely on a custom-built or heavily locked-down system this tool
+doesn't support.
+
+## A note on Workday
+
+Workday support works differently from the rest: there's no official
+public API, so this calls the same internal JSON endpoint Workday's own
+careers pages use to render themselves in your browser. It works, but:
+
+- It's not a documented, stable contract — Workday changing something
+  internally could break it without notice. If a Workday company starts
+  failing, that's the likely cause, not a bug in the config.
+- Workday runs bot protection (Akamai). Running this more than once a
+  day, or against many Workday tenants at once, raises the chance of
+  getting temporarily blocked. The script paces requests and caps how
+  many jobs it pages through per company to stay reasonably polite.
+- Field detail is thinner than the other platforms (e.g. posting dates
+  come through as relative text, not exact timestamps).
 
 ## Limitations
 
-- Only covers the six ATS platforms above — not LinkedIn, Indeed, or
-  Workday (Workday doesn't expose a stable public API the same way).
+- Covers Greenhouse, Lever, Ashby, SmartRecruiters, Recruitee, Workable,
+  and Workday — not LinkedIn or Indeed.
 - You maintain the company list yourself — it won't discover new
   companies on its own.
 - Occasionally a company reposts the same role with a new internal ID,
   which can show up as a near-duplicate. Harmless, just delete the
   extra row if it bothers you.
 - Respect each platform's terms of use — this only calls the same
-  public endpoints their own careers pages use, at a light, scheduled
-  pace (once a day), not aggressive scraping.
+  public (or, for Workday, effectively public-facing) endpoints their
+  own careers pages use, at a light, scheduled pace, not aggressive
+  scraping.

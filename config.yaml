@@ -9,6 +9,16 @@
 #   some-company.recruitee.com           -> token: some-company
 #   apply.workable.com/some-company      -> token: some-company
 #
+# Workday is different — it needs three fields instead of one token.
+# From a URL like https://priceline.wd1.myworkdayjobs.com/BookingHoldings:
+#   tenant: priceline
+#   wd_server: wd1
+#   site: BookingHoldings
+#
+# Workday support is less stable than the others — it uses an internal
+# (unofficial) endpoint and has bot protection. See job_watcher.py's
+# fetch_workday() docstring for details.
+#
 # Not all tokens below are verified — confirm each one against the real
 # careers URL before relying on it. A wrong token just means that company
 # gets skipped with a warning, it won't break the whole run.
@@ -16,19 +26,21 @@
 companies:
   - name: Nebius
     ats: greenhouse
-    token: nebius          # confirmed — boards.eu.greenhouse.io/nebius
+    token: nebius          # confirmed — job-boards.greenhouse.io/nebius
 
   - name: Adyen
     ats: greenhouse
-    token: adyen           # TODO: verify slug on adyen's careers page
-
-  - name: Booking.com
-    ats: greenhouse
-    token: booking          # TODO: verify — Booking may use a custom/internal ATS instead
+    token: adyen           # confirmed — job-boards.greenhouse.io/adyen
 
   - name: TomTom
-    ats: greenhouse
-    token: tomtom           # TODO: verify slug
+    ats: lever
+    token: tomtom          # confirmed — jobs.eu.lever.co/tomtom
+
+  - name: Booking Holdings
+    ats: workday
+    tenant: priceline      # confirmed — priceline.wd1.myworkdayjobs.com/BookingHoldings
+    wd_server: wd1
+    site: BookingHoldings
 
   # Add more companies here as you find them. Example for a Lever/Ashby company:
   # - name: Example Startup

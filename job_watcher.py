@@ -49,10 +49,27 @@ def http_post_json(url, payload):
         return json.loads(resp.read().decode("utf-8"))
 
 
+def http_post_json_raw(url, payload, extra_headers=None):
+    """Like http_post_json, but sends real application/json — needed for
+    APIs (like Workday) that actually validate the content type, unlike
+    Apps Script which we deliberately dodge preflight for elsewhere."""
+    data = json.dumps(payload).encode("utf-8")
+    headers = {"Content-Type": "application/json", "Accept": "application/json",
+               "User-Agent": USER_AGENT}
+    if extra_headers:
+        headers.update(extra_headers)
+    req = urllib.request.Request(url, data=data, method="POST", headers=headers)
+    with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
 # ---- ATS fetchers -----------------------------------------------------
 # Each returns a list of dicts: {raw_id, title, location, url}
+# Each takes the full company config dict (not just the token), since
+# Workday needs more than a single slug to build its URL.
 
-def fetch_greenhouse(token):
+def fetch_greenhouse(company):
+    token = company["token"]
     data = http_get_json(f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs")
     out = []
     for j in data.get("jobs", []):
@@ -65,7 +82,8 @@ def fetch_greenhouse(token):
     return out
 
 
-def fetch_lever(token):
+def fetch_lever(company):
+    token = company["token"]
     data = http_get_json(f"https://api.lever.co/v0/postings/{token}?mode=json")
     out = []
     for j in data:
@@ -78,7 +96,8 @@ def fetch_lever(token):
     return out
 
 
-def fetch_ashby(token):
+def fetch_ashby(company):
+    token = company["token"]
     data = http_get_json(f"https://api.ashbyhq.com/posting-api/job-board/{token}")
     out = []
     for j in data.get("jobs", []):
@@ -91,7 +110,8 @@ def fetch_ashby(token):
     return out
 
 
-def fetch_smartrecruiters(token):
+def fetch_smartrecruiters(company):
+    token = company["token"]
     data = http_get_json(f"https://api.smartrecruiters.com/v1/companies/{token}/postings")
     out = []
     for j in data.get("content", []):
@@ -104,7 +124,8 @@ def fetch_smartrecruiters(token):
     return out
 
 
-def fetch_recruitee(token):
+def fetch_recruitee(company):
+    token = company["token"]
     data = http_get_json(f"https://{token}.recruitee.com/api/offers/")
     out = []
     for j in data.get("offers", []):
@@ -117,7 +138,8 @@ def fetch_recruitee(token):
     return out
 
 
-def fetch_workable(token):
+def fetch_workable(company):
+    token = company["token"]
     data = http_get_json(f"https://apply.workable.com/api/v1/widget/accounts/{token}")
     out = []
     for j in data.get("jobs", []):
@@ -130,6 +152,68 @@ def fetch_workable(token):
     return out
 
 
+def fetch_workday(company):
+    """
+    Workday has no official public API for this. Every Workday careers
+    site quietly calls its own internal JSON endpoint to render the page
+    you see in the browser — that's what we call here. It's widely used
+    for this purpose, but it's NOT a documented/stable contract like the
+    other ATS platforms, so:
+      - field shapes can vary slightly between Workday versions/tenants
+      - Workday runs Akamai bot protection; occasional blocks/CAPTCHAs
+        are possible, especially if run too frequently
+      - if it breaks, it's Workday's internal API changing, not a bug
+        in the logic below
+
+    Config needs three fields instead of a single token:
+      tenant:    subdomain before .wdN.myworkdayjobs.com
+      wd_server: the "wdN" part, e.g. wd1, wd3, wd5 (check the real URL)
+      site:      the path segment after the domain
+
+    Example: https://priceline.wd1.myworkdayjobs.com/BookingHoldings
+      tenant: priceline
+      wd_server: wd1
+      site: BookingHoldings
+    """
+    tenant = company.get("tenant")
+    wd_server = company.get("wd_server", "wd1")
+    site = company.get("site")
+    if not tenant or not site:
+        raise ValueError("Workday entries need 'tenant' and 'site' set in config.yaml")
+
+    base = f"https://{tenant}.{wd_server}.myworkdayjobs.com"
+    url = f"{base}/wday/cxs/{tenant}/{site}/jobs"
+    referer = f"{base}/en-US/{site}"
+
+    out = []
+    limit = 20
+    offset = 0
+    max_jobs = 300  # safety cap — don't hammer a huge tenant on every run
+    while True:
+        payload = {"appliedFacets": {}, "limit": limit, "offset": offset, "searchText": ""}
+        data = http_post_json_raw(url, payload, extra_headers={
+            "Accept-Language": "en-US",
+            "Referer": referer,
+        })
+        postings = data.get("jobPostings", [])
+        if not postings:
+            break
+        for j in postings:
+            path = j.get("externalPath", "")
+            out.append({
+                "raw_id": path or f"offset{offset}-{j.get('title', '')}",
+                "title": j.get("title", ""),
+                "location": j.get("locationsText", ""),
+                "url": base + path,
+            })
+        offset += limit
+        total = data.get("total", 0)
+        if offset >= total or offset >= max_jobs:
+            break
+        time.sleep(0.4)  # be extra polite — Workday is more block-happy
+    return out
+
+
 FETCHERS = {
     "greenhouse": fetch_greenhouse,
     "lever": fetch_lever,
@@ -137,6 +221,7 @@ FETCHERS = {
     "smartrecruiters": fetch_smartrecruiters,
     "recruitee": fetch_recruitee,
     "workable": fetch_workable,
+    "workday": fetch_workday,
 }
 
 
@@ -213,7 +298,8 @@ def main():
     for company in companies:
         name = company.get("name", "Unknown")
         ats = company.get("ats", "").lower()
-        token = company.get("token", "")
+        # Workday entries key off tenant+site instead of a single token
+        id_key = company.get("token") or f"{company.get('tenant', '')}-{company.get('site', '')}"
 
         fetcher = FETCHERS.get(ats)
         if not fetcher:
@@ -221,9 +307,9 @@ def main():
             continue
 
         try:
-            jobs = fetcher(token)
+            jobs = fetcher(company)
         except urllib.error.HTTPError as e:
-            print(f"SKIP {name}: HTTP {e.code} — check the token/slug is correct")
+            print(f"SKIP {name}: HTTP {e.code} — check the token/tenant config is correct")
             continue
         except Exception as e:
             print(f"SKIP {name}: {e}")
@@ -233,7 +319,7 @@ def main():
         print(f"{name} ({ats}): {len(jobs)} open roles, {len(matched)} match keywords")
 
         for job in matched:
-            stable_id = f"{ats}:{token}:{job['raw_id']}"
+            stable_id = f"{ats}:{id_key}:{job['raw_id']}"
             if stable_id in existing_ids:
                 continue  # already in the tracker — don't touch it, in case
                           # the user already moved its status
