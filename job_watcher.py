@@ -17,6 +17,7 @@ import time
 import datetime
 import urllib.request
 import urllib.error
+import urllib.parse
 
 try:
     import yaml
@@ -225,6 +226,52 @@ FETCHERS = {
 }
 
 
+# ---- Adzuna discovery layer --------------------------------------------
+# Unlike the fetchers above (one specific company each), Adzuna is a job
+# aggregator: you give it a keyword + country, and it returns matching
+# postings from many different companies — including ones you haven't
+# added to config.yaml at all. This is what covers "other companies I
+# don't know about yet."
+#
+# Needs a free API key from https://developer.adzuna.com — set
+# ADZUNA_APP_ID and ADZUNA_APP_KEY as environment variables / repo secrets.
+
+def fetch_adzuna(query, adzuna_config):
+    app_id = os.environ.get("ADZUNA_APP_ID", "").strip()
+    app_key = os.environ.get("ADZUNA_APP_KEY", "").strip()
+    if not app_id or not app_key:
+        raise RuntimeError("ADZUNA_APP_ID / ADZUNA_APP_KEY environment variables not set")
+
+    country = adzuna_config.get("country", "nl")
+    results_per_page = adzuna_config.get("results_per_page", 50)
+    max_days_old = adzuna_config.get("max_days_old")
+
+    params = {
+        "app_id": app_id,
+        "app_key": app_key,
+        "what": query,
+        "content-type": "application/json",
+        "results_per_page": str(results_per_page),
+    }
+    if max_days_old:
+        params["max_days_old"] = str(max_days_old)
+
+    query_string = urllib.parse.urlencode(params)
+    url = f"https://api.adzuna.com/v1/api/jobs/{country}/search/1?{query_string}"
+    data = http_get_json(url)
+
+    out = []
+    for j in data.get("results", []):
+        out.append({
+            "raw_id": str(j.get("id")),
+            "title": j.get("title", ""),
+            "location": (j.get("location") or {}).get("display_name", ""),
+            "url": j.get("redirect_url", ""),
+            "company": (j.get("company") or {}).get("display_name", "Unknown"),
+        })
+    return out
+
+
 # ---- Sheets tracker integration ---------------------------------------
 
 def get_existing_ids(sheets_url):
@@ -268,8 +315,26 @@ def notify_discord(webhook_url, new_jobs):
 # ---- Main ---------------------------------------------------------------
 
 def matches_keywords(title, keywords):
+    if not keywords:
+        return True
     title_lower = title.lower()
     return any(kw.lower() in title_lower for kw in keywords)
+
+
+def matches_exclude(title, exclude_keywords):
+    if not exclude_keywords:
+        return False
+    title_lower = title.lower()
+    return any(kw.lower() in title_lower for kw in exclude_keywords)
+
+
+def matches_location(location, locations):
+    if not locations:
+        return True  # location filtering disabled
+    if not location:
+        return False  # can't confirm a match with no location data
+    location_lower = location.lower()
+    return any(loc.lower() in location_lower for loc in locations)
 
 
 def main():
@@ -284,9 +349,15 @@ def main():
 
     companies = config.get("companies", [])
     keywords = config.get("keywords", [])
+    exclude_keywords = config.get("exclude_keywords", [])
+    locations = config.get("locations", [])
 
     if not keywords:
         print("WARNING: no keywords configured — every open role will match.")
+    if locations:
+        print(f"Location filter active: {', '.join(locations)}")
+    if exclude_keywords:
+        print(f"Excluding titles containing: {', '.join(exclude_keywords)}")
 
     print(f"Loading existing tracker entries from Sheets...")
     existing_ids = get_existing_ids(sheets_url)
@@ -315,8 +386,13 @@ def main():
             print(f"SKIP {name}: {e}")
             continue
 
-        matched = [j for j in jobs if matches_keywords(j["title"], keywords)]
-        print(f"{name} ({ats}): {len(jobs)} open roles, {len(matched)} match keywords")
+        matched = [
+            j for j in jobs
+            if matches_keywords(j["title"], keywords)
+            and not matches_exclude(j["title"], exclude_keywords)
+            and matches_location(j["location"], locations)
+        ]
+        print(f"{name} ({ats}): {len(jobs)} open roles, {len(matched)} match after filters")
 
         for job in matched:
             stable_id = f"{ats}:{id_key}:{job['raw_id']}"
@@ -342,6 +418,51 @@ def main():
                 print(f"  ! failed to add '{entry['role']}': {e}")
 
         time.sleep(0.5)  # be polite to the APIs
+
+    # ---- Adzuna discovery pass: other companies not in the config above ----
+    adzuna_config = config.get("adzuna", {})
+    if adzuna_config.get("enabled"):
+        queries = adzuna_config.get("queries", [])
+        country = adzuna_config.get("country", "nl")
+        for query in queries:
+            try:
+                jobs = fetch_adzuna(query, adzuna_config)
+            except Exception as e:
+                print(f"SKIP Adzuna query '{query}': {e}")
+                continue
+
+            matched = [
+                j for j in jobs
+                if matches_keywords(j["title"], keywords)
+                and not matches_exclude(j["title"], exclude_keywords)
+                and matches_location(j["location"], locations)
+            ]
+            print(f"Adzuna '{query}': {len(jobs)} results, {len(matched)} match after filters")
+
+            for job in matched:
+                stable_id = f"adzuna:{country}:{job['raw_id']}"
+                if stable_id in existing_ids:
+                    continue
+
+                entry = {
+                    "id": stable_id,
+                    "company": job["company"],
+                    "role": job["title"],
+                    "status": "wishlist",
+                    "dateApplied": "",
+                    "link": job["url"],
+                    "notes": f"Auto-discovered via Adzuna on {today}"
+                             + (f" — {job['location']}" if job["location"] else ""),
+                }
+                try:
+                    add_to_tracker(sheets_url, entry)
+                    new_jobs.append(entry)
+                    existing_ids.add(stable_id)
+                    print(f"  + added: {entry['company']} — {entry['role']}")
+                except Exception as e:
+                    print(f"  ! failed to add '{entry['role']}': {e}")
+
+            time.sleep(0.5)
 
     print(f"\nDone. {len(new_jobs)} new job(s) added to the tracker.")
     if new_jobs:

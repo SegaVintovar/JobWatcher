@@ -20,6 +20,10 @@ something to "Applied" or "Interview," this won't overwrite it.
    - `DISCORD_WEBHOOK_URL` — optional. If set, you'll get a Discord
      message whenever new jobs are found. Leave it out if you don't
      want this.
+   - `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` — required only if you keep
+     `adzuna.enabled: true` in config.yaml (see below). Free to get at
+     https://developer.adzuna.com — sign up, create an app, copy both
+     values.
 
 3. **Edit `config.yaml`**:
    - Fill in real companies and their ATS token (the slug from their
@@ -61,6 +65,40 @@ Open their careers page and look at the URL:
 If a company's careers page doesn't match any of these patterns, it's
 likely on a custom-built or heavily locked-down system this tool
 doesn't support.
+
+## Finding new companies automatically (Adzuna)
+
+Everything above requires you to already know which company to watch.
+Adzuna works differently: it's a job aggregator, so a keyword + country
+search surfaces postings from companies you've never added to
+`config.yaml` — that's the "what else is out there" layer.
+
+In `config.yaml`:
+```yaml
+adzuna:
+  enabled: true
+  country: nl
+  queries:
+    - "junior software engineer"
+    - "ai engineer"
+```
+Each line under `queries` is a separate search and costs one API call
+per run — keep the list short and specific rather than broad and long,
+both for your free-tier quota and to keep results relevant.
+
+New Adzuna finds land in the same Wishlist column, tagged with the
+actual hiring company (not "Adzuna") and a note saying how they were
+found.
+
+**Worth knowing:**
+- Free tier has a request-per-day limit — check current limits at
+  developer.adzuna.com if you add a lot of queries
+- Adzuna's own coverage isn't complete — it won't catch everything, and
+  can lag behind a company's own careers page
+- If a job shows up both directly (via your company list) *and* via
+  Adzuna, you may occasionally get two rows for the same role, since
+  they're tracked under different IDs. Harmless — just delete the extra
+  one if you notice it.
 
 ## A note on Workday
 

@@ -60,3 +60,48 @@ keywords:
   - "ai engineer"
   - "machine learning"
   - "llm"
+
+# Roles whose title contains ANY of these (case-insensitive) are skipped,
+# even if they also match a keyword above. Use this to filter out seniority
+# levels or role types you don't want.
+exclude_keywords:
+  - "senior"
+  - "staff"
+  - "principal"
+  - "lead"
+  - "manager"
+  - "director"
+  - "head of"
+
+# Only roles whose location text contains at least one of these
+# (case-insensitive) are kept. Leave this list empty ([]) to disable
+# location filtering entirely and keep every location.
+#
+# Caveat: if an ATS doesn't return a location for a posting (some don't),
+# that posting gets excluded when this filter is on, since there's no way
+# to confirm it's a match. This is rare but worth knowing about.
+locations:
+  - "netherlands"
+  - "amsterdam"
+  - "the hague"
+  - "den haag"
+  - "rotterdam"
+  - "utrecht"
+  - "eindhoven"
+  # Add "remote" here too if you also want remote roles regardless of country
+
+# Adzuna discovery layer — finds jobs at companies NOT in your list above,
+# by searching keywords + country directly (aggregates many companies).
+# Needs a free API key: https://developer.adzuna.com — set ADZUNA_APP_ID
+# and ADZUNA_APP_KEY as environment variables / repo secrets.
+adzuna:
+  enabled: true
+  country: nl          # ISO country code Adzuna uses — nl = Netherlands
+  results_per_page: 50 # max results per query, per run
+  max_days_old: 3      # only postings from the last N days (keeps results fresh)
+  queries:             # one search per line — each costs one API call
+    - "junior software engineer"
+    - "graduate software engineer"
+    - "software engineer intern"
+    - "ai engineer"
+    - "backend developer"
