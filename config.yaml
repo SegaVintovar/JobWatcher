@@ -42,17 +42,26 @@ companies:
     wd_server: wd1
     site: BookingHoldings
 
-  - name: Telnyx
-    ats: greenhouse
-    token: telnyx54        # confirmed from job-boards.greenhouse.io/telnyx54 (has Amsterdam roles, but mostly senior)
+  - name: Robin Radar
+    ats: ashby
+    token: robin-radar     # confirmed — their careers page links to jobs.ashbyhq.com/robin-radar
 
-  - name: Palantir
-    ats: lever
-    token: palantir
   # Add more companies here as you find them. Example for a Lever/Ashby company:
   # - name: Example Startup
   #   ats: ashby
   #   token: example-startup
+
+# ---- Checked, but NOT watchable with this tool (check these by hand) ----
+# The watcher only reads the ATS platforms listed at the top. These companies
+# use something else, or their ATS couldn't be identified from the careers page:
+#   Software Improvement Group  -> Personio (sig.jobs.personio.com) — not supported yet
+#   Optiver                     -> custom careers site, no public API found
+#   Picnic                      -> custom careers site (jobs.picnic.app)
+#   Monumental                  -> custom careers page (monumental.co/jobs)
+#   Hiber                       -> WordPress page, no vacancies listed when checked
+#   Mploy Associates            -> Webflow page; consulting placements, not an ATS
+#   Together AI                 -> careers page didn't reveal an ATS link
+#   Databricks                  -> careers page loads jobs dynamically; ATS not confirmed
 
 # Only roles whose title contains at least one of these (case-insensitive)
 # will be added to the tracker. Keep this reasonably broad — you can always
@@ -67,6 +76,14 @@ keywords:
   - "ai engineer"
   - "machine learning"
   - "llm"
+  - "developer"
+  - "student"
+  - "werkstudent"
+  - "working student"
+  - "trainee"
+  - "full-stack"
+  - "fullstack"
+  - "full stack"
 
 # Roles whose title contains ANY of these (case-insensitive) are skipped,
 # even if they also match a keyword above. Use this to filter out seniority
@@ -79,6 +96,10 @@ exclude_keywords:
   - "manager"
   - "director"
   - "head of"
+  - "sales"           # keeps "Sales Developer" out
+  - "business"        # keeps "Business Developer" out
+  - "international"   # "intern" is a substring of these two
+  - "internal"
 
 # Only roles whose location text contains at least one of these
 # (case-insensitive) are kept. Leave this list empty ([]) to disable
