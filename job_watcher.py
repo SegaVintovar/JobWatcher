@@ -85,16 +85,37 @@ def fetch_greenhouse(company):
 
 def fetch_lever(company):
     token = company["token"]
-    data = http_get_json(f"https://api.lever.co/v0/postings/{token}?mode=json")
-    out = []
-    for j in data:
-        out.append({
-            "raw_id": str(j.get("id")),
-            "title": j.get("text", ""),
-            "location": ((j.get("categories") or {}).get("location") or ""),
-            "url": j.get("hostedUrl", ""),
-        })
-    return out
+    # Lever runs two separate regional hosts. A company whose careers page
+    # is on jobs.eu.lever.co (not jobs.lever.co) is EU-hosted, and 404s on
+    # the global host. Try global first, then EU, so this works either way
+    # without needing to know a company's region in advance.
+    region = company.get("region", "auto")
+    if region == "eu":
+        hosts = ["api.eu.lever.co"]
+    elif region == "global":
+        hosts = ["api.lever.co"]
+    else:
+        hosts = ["api.lever.co", "api.eu.lever.co"]
+
+    last_error = None
+    for host in hosts:
+        try:
+            data = http_get_json(f"https://{host}/v0/postings/{token}?mode=json")
+            out = []
+            for j in data:
+                out.append({
+                    "raw_id": str(j.get("id")),
+                    "title": j.get("text", ""),
+                    "location": ((j.get("categories") or {}).get("location") or ""),
+                    "url": j.get("hostedUrl", ""),
+                })
+            return out
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                last_error = e
+                continue
+            raise
+    raise last_error
 
 
 def fetch_ashby(company):

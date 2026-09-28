@@ -116,7 +116,9 @@ locations:
   - "rotterdam"
   - "utrecht"
   - "eindhoven"
-  # Add "remote" here too if you also want remote roles regardless of country
+  - "remote"  # catches NL companies (e.g. Robin Radar) that label roles "Remote"
+              # instead of a city — trade-off: this also lets through remote
+              # roles at non-NL companies, if any slip through the ATS list above
 
 # Adzuna discovery layer — finds jobs at companies NOT in your list above,
 # by searching keywords + country directly (aggregates many companies).
