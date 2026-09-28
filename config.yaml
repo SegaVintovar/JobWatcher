@@ -42,6 +42,13 @@ companies:
     wd_server: wd1
     site: BookingHoldings
 
+  - name: Telnyx
+    ats: greenhouse
+    token: telnyx54        # confirmed from job-boards.greenhouse.io/telnyx54 (has Amsterdam roles, but mostly senior)
+
+  - name: Palantir
+    ats: lever
+    token: palantir
   # Add more companies here as you find them. Example for a Lever/Ashby company:
   # - name: Example Startup
   #   ats: ashby
