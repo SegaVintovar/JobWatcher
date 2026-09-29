@@ -335,6 +335,23 @@ def notify_discord(webhook_url, new_jobs):
 
 # ---- Main ---------------------------------------------------------------
 
+def print_location_near_misses(jobs, keywords, exclude_keywords, locations, label):
+    """Jobs that passed the keyword/exclude filters but got dropped by the
+    location filter — printed so a bad location filter is visible in the
+    logs instead of silently producing zero matches with no explanation."""
+    passed_kw = [
+        j for j in jobs
+        if matches_keywords(j["title"], keywords)
+        and not matches_exclude(j["title"], exclude_keywords)
+    ]
+    near_misses = [j for j in passed_kw if not matches_location(j["location"], locations)]
+    if near_misses:
+        shown = near_misses[:5]
+        detail = "; ".join(f"'{j['title']}' @ '{j['location'] or '(no location given)'}'" for j in shown)
+        more = f" ... +{len(near_misses) - 5} more" if len(near_misses) > 5 else ""
+        print(f"  ({label}: {len(near_misses)} matched keywords but were dropped by location filter: {detail}{more})")
+
+
 def matches_keywords(title, keywords):
     if not keywords:
         return True
@@ -414,6 +431,8 @@ def main():
             and matches_location(j["location"], locations)
         ]
         print(f"{name} ({ats}): {len(jobs)} open roles, {len(matched)} match after filters")
+        if locations:
+            print_location_near_misses(jobs, keywords, exclude_keywords, locations, name)
 
         for job in matched:
             stable_id = f"{ats}:{id_key}:{job['raw_id']}"
@@ -459,6 +478,8 @@ def main():
                 and matches_location(j["location"], locations)
             ]
             print(f"Adzuna '{query}': {len(jobs)} results, {len(matched)} match after filters")
+            if locations:
+                print_location_near_misses(jobs, keywords, exclude_keywords, locations, f"Adzuna '{query}'")
 
             for job in matched:
                 stable_id = f"adzuna:{country}:{job['raw_id']}"
